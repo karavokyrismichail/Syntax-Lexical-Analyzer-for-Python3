@@ -1,0 +1,256 @@
+%{
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+void yyerror();
+extern FILE *yyin;
+extern FILE *yyout;                                
+extern int yylineno;
+
+%}
+
+%union
+{
+	float f;
+	char *s;
+}
+
+%token INT FLOAT RELOP COMPOP HASH FROM AS ELIF ELSE 
+%token IF IMPORT PRINT CLASS IN IS DEF FOR OPBR CLBR OPSQ CLSQ 
+%token SETDEFAULT COMMENT OPCL CLCL US DQ DOT CO COLLON ID SPACE 
+%token NEWLINE TAB INIT SELF RANGE EQUAL LAMBDA DICT ITEMS
+ 
+%left '+''-'
+%left '/''*' 
+
+%%
+
+START:      PRG
+			| PRG NL START
+		    | NL START
+	        ;
+
+NL:			NEWLINE 
+			| TAB 
+			;
+
+PRG:        IMPORTSTMT
+            | COMMENTSTMT	
+		   	| CLASSDEF
+			| SELF_STUFF
+			| FUNCDEF
+			| OBJECTCREATE
+			| FUNCTIONCALL
+			| FORSTMT
+			| IFSTMT
+			| PRINTSTMT 
+			| VARDECL
+			| LAMBDADEC
+			| DICTIONARIESDEC
+			| ITEMSMETHOD
+			| SETDEFAULTMETHOD
+			|
+	        ;
+
+IMPORTSTMT: IMPORT ID NL PRG // IMPORT KATI
+		    | IMPORT ID AS ID NL PRG // IMPORT KATI AS KATI 
+            | FROM ID IMPORT ID NL PRG // FROM KATI IMPORT KATI
+		    | FROM ID IMPORT '*' NL PRG // FROM KATI IMPORT EVERYTHING * 
+            ;
+
+COMMENTSTMT: COMMENT NL PRG 
+	        | COMMENT PRG
+			| DQ DQ DQ MULTIPLECOMMENT DQ DQ DQ NL PRG
+            ;
+
+STRING:     ID 
+            | ID STRING
+            | INT STRING
+            | INT
+            | FLOAT STRING
+            | FLOAT
+            ;
+
+MULTIPLECOMMENT: STRING MULTIPLECOMMENT
+			| NL
+			;
+
+CLASSDEF:   CLASS CLASSNAME COLLON CLASSDEF
+            | NL TAB CONSTRUCTOR NL PRG // CONSTRUCTOR SIGOURA TAB
+			| NL TAB PRG // MPOREI NA EXOYME KATI MESA STHN CLASS (IF STATEMENT OR FUNCTION OR ANYTHING)
+			| NL PRG // MPOREI NA MHN EXOUME KATI ALLO STHN CLASS
+			;
+
+CLASSNAME:  ID
+            ;
+
+CONSTRUCTOR: DEF INIT OPBR PARAMETER CLBR COLLON NL TAB SELF_STUFF  
+			;
+
+FUNCDEF:    DEF FNAME OPBR PARAMETER CLBR COLLON FUNCDEF
+            | NEWLINE TAB PRG
+			|
+            ;
+
+FNAME:      ID
+            ;
+
+SELF_STUFF: TAB SELF DOT ID EQUAL ID NL 
+			;
+
+PARAMETER:  ID
+            | ID CO PARAMETER
+            | SELF CO PARAMETER // FOR CONSTRUCTOR PARAMETER
+			| FLOAT CO PARAMETER
+			| INT CO PARAMETER
+			| INT
+			| FLOAT 
+			| 
+            ;
+
+OBJECTCREATE: ID EQUAL CLASSNAME OPBR PARAMETER CLBR NL PRG
+			;
+
+FUNCTIONCALL: ID OPBR PARAMETER CLBR NL PRG // function_name(parameters)
+			| ID DOT ID OPBR PARAMETER CLBR NL PRG // class_name.function_name(parameters)
+			;
+
+FORSTMT:	FOR ID IN ID COLLON NEWLINE TAB PRG // for i in list_A: newline+tab+something else 
+			| FOR ID IN RANGE OPBR PARAMETER CLBR COLLON NEWLINE TAB PRG // for i in range(1,10,2): newline+tab+something else | for i in range(1,10,2): newline+tab+something else
+       		;
+
+IFSTMT:		IF CONDEXP COLLON NEWLINE TAB PRG // if 2>1: newline+tab+something else
+            | ELIF CONDEXP COLLON NEWLINE TAB PRG // elif 2<1: newline+tab+something else
+            | ELSE COLLON NEWLINE TAB PRG // else: newline+tab+something else
+            ;
+
+CONDEXP:    INT RELOP INT 
+            | INT COMPOP INT // 2 > 1 FOR/IF
+            | ID COMPOP ID  // A > B FOR/IF
+            | ID COMPOP INT // A > 5 FOR/IF
+            | ID MATHOP ID // A+B PRINTSTMT
+            | ID MATHOP INT // A+5 PRINTSTMT
+			| ID IN ID // VAR_A IN LIST_A FOR/IF 
+			| INT IN ID // 5 IN LIST_A FOR/IF
+            ;
+
+PRINTSTMT:  PRINT OPBR INT CLBR NL PRG   { printf("\nPRINTING << %f >>\n", $<f>3); }// PRINT INT
+            | PRINT OPBR DQ STRING DQ CLBR NL PRG  { printf("\nPRINTING << %s >>\n", $<s>4); }// PRINT('TEXT')  
+			| PRINT OPBR CONDEXP CLBR NL PRG // PRINT OPERATIONS BETWEEN VARIABLES
+			| PRINT OPBR ID ITEMS CLBR NL PRG // PRINTING ID DOT ITEMS()
+			| PRINT OPBR FLOAT CLBR NL PRG   { printf("\nPRINTING << %f >>\n", $<f>3); }// PRINT FLOAT
+			| PRINT OPBR ID CLBR NL PRG // PRINT VARIABLE
+            ;
+
+MATHOP:     '+'
+			| '-'
+			| '/'
+			| '*'
+			;
+
+OPERATIONS:  INT
+			| FLOAT
+			| OPERATIONS '+' OPERATIONS           { $<f>$ = $<f>1 + $<f>3; }
+			| OPERATIONS '*' OPERATIONS           { $<f>$ = $<f>1 * $<f>3; }
+			| OPERATIONS '-' OPERATIONS           { $<f>$ = $<f>1 - $<f>3; }
+			| OPERATIONS '/' OPERATIONS           { if ($<f>3 == 0) { printf("\nCannot divide by zero\n"); exit(1);} else $<f>$ = $<f>1 / $<f>3; }
+			;
+
+VARDECL:    NUMBERDECL NL PRG 
+            | STRINGDECL NL PRG
+            ;
+
+STRINGDECL: ID EQUAL STRINGNAME // X = 'GIORGOS'
+            ;
+
+STRINGNAME: DQ STRING DQ
+			;
+
+NUMBERDECL: ID EQUAL OPERATIONS { printf("\nVariable %s = %f\n", $<s>1,$<f>3); } // X = 1+1
+		  	| ID EQUAL OPERATOR // X = OPERATOR | X = A + B
+            ;
+
+OPERATOR:   ID
+			| ID MATHOP OPERATOR
+			| INT
+			| FLOAT  
+			;
+
+LAMBDADEC: 	ID EQUAL LAMBDAOPERATIONS NL PRG // X = LAMBDAOPERATIONS
+			;
+
+
+// LAMBDA X,Y(ARA PARAMETERS TOULAXISTON 1 ME , ANAMESA) : OPERATOR
+LAMBDAOPERATIONS: LAMBDA PARAMETER COLLON OPERATOR // LAMBDA X : OPERATOR
+			;
+
+
+DICTIONARIESDEC: ID EQUAL OPCL DICTPARAMETER CLCL NL PRG // ONE LINE DICTIONARY
+			| ID EQUAL DICT OPBR OPCL DICTPARAMETER CLCL CLBR NL PRG // ONE LINE DICTIONARY USING DICT METHOD
+			// MULTIPLE LINES IS PRETTY TRICKY
+			| ID EQUAL OPCL NL DICTMULTIPLELINES NL PRG
+			;
+
+DICTMULTIPLELINES: DICTPARAMETER NL
+			| NL CLCL
+			;
+
+DICTPARAMETER:  APOSTROPHESTRING COLLON STRING CO DICTPARAMETER // FOR 'STRING':STRING, ... DICTPARAMETER FOR RECURSION
+			| APOSTROPHESTRING COLLON STRING // FOR 'STRING':STRING
+			| APOSTROPHESTRING COLLON APOSTROPHESTRING CO DICTPARAMETER // FOR 'STRING':'STRING', ... DICTPARAMETER FOR RECURSION
+			| APOSTROPHESTRING COLLON APOSTROPHESTRING // FOR 'STRING':'STRING'
+			| STRING COLLON STRING CO DICTPARAMETER // FOR STRING:STRING, ...
+			| STRING COLLON APOSTROPHESTRING CO DICTPARAMETER // FOR STRING:'STRING', ...
+			| STRING COLLON STRING // FOR STRING:STRING
+			| STRING COLLON APOSTROPHESTRING // FOR STRING:'STRING'
+			| // FOR EMPTY DICTIONARY
+			;
+
+APOSTROPHESTRING: DQ STRING DQ
+			;
+
+// VAR = DICTIONARY_NAME . ITEMS()
+ITEMSMETHOD: ID EQUAL ID ITEMS NL PRG
+			;
+
+// X = X.SETDEFAU
+SETDEFAULTMETHOD: ID EQUAL ID SETDEFAULT OPBR SETDEFAULTPARAMETER CLBR NL PRG
+			;
+
+
+// FOR SETDEFAULT PURPOSES 
+SETDEFAULTPARAMETER: DQ PARAMETER DQ CO SETDEFAULTPARAMETER // dic1.setdefault('color', 'white')
+			| DQ PARAMETER DQ
+			| PARAMETER CO SETDEFAULTPARAMETER // dic1.setdefault('age', 2)
+			| PARAMETER 
+			;
+
+
+%%
+
+
+int main(int argc, char *argv[]){
+	
+    yyin = fopen(argv[1], "r");
+
+	if(yyin == NULL)
+	{
+		printf("Error with the file!\n");
+		exit(EXIT_FAILURE);
+	}
+
+	yyparse();
+	
+	printf("\nParsing is successfully complete!\n");
+
+    return 0;
+		
+	
+}
+
+void yyerror()
+{
+	printf("\nSyntax Error in Line: %d\n", yylineno);
+	exit(0); // if error found exit the program
+}
